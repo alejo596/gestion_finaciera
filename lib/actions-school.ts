@@ -14,7 +14,6 @@ import {
 import { getUserId } from "@/lib/session"
 import { eq, and, desc, sql, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
-import { signUp } from "@/lib/auth" // para crear cuentas de apoderados en el server
 
 // --- COLEGIOS ---
 export async function getColegios() {

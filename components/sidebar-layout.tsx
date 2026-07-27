@@ -77,7 +77,7 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
   }
 
   const user = session?.user
-  const userRole = user?.role ?? "apoderado"
+  const userRole = (user as any)?.role ?? "apoderado"
 
   const initials = user?.name
     ? user.name
