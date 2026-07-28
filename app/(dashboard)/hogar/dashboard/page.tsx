@@ -7,29 +7,87 @@ import {
   getGastosAlimentacion,
 } from "@/lib/actions"
 import { DashboardContent } from "@/app/(dashboard)/dashboard/dashboard-content"
-
 import { redirect } from "next/navigation"
 
 export default async function HogarDashboardPage() {
   const user = await requireUser()
-  if (user.role !== "webmaster" && user.role !== "admin") {
+  if (user.role !== "webmaster" && user.role !== "admin" && user.role !== "invitado") {
     redirect("/dashboard")
   }
 
-  const [ingresos, gastos, categorias] = await Promise.all([
-    getIngresos(),
-    getGastos(),
-    getCategorias(),
-  ])
+  const isGuest = user.role === "invitado"
+  
+  let ingresos: any[] = []
+  let gastos: any[] = []
+  let categorias: any[] = []
+  let presupuestoAlimentacion = null
+  let gastosAlimentacion: any[] = []
 
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth() + 1
+  if (isGuest) {
+    // Categorías de prueba (ficticias)
+    categorias = [
+      { id: 101, nombre: "Sueldos y Aportes", color: "#10b981" },
+      { id: 102, nombre: "Vivienda y Servicios", color: "#3b82f6" },
+      { id: 103, nombre: "Alimentación", color: "#f59e0b" },
+      { id: 104, nombre: "Transporte", color: "#06b6d4" },
+      { id: 105, nombre: "Salud y Bienestar", color: "#ef4444" },
+      { id: 106, nombre: "Educación", color: "#8b5cf6" },
+    ]
 
-  const [presupuestoAlimentacion, gastosAlimentacion] = await Promise.all([
-    getPresupuestoAlimentacion(currentYear, currentMonth),
-    getGastosAlimentacion(currentYear, currentMonth),
-  ])
+    const now = new Date()
+    const currentMonthPref = now.toISOString().substring(0, 7) // "YYYY-MM"
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const prevMonthPref = prevMonth.toISOString().substring(0, 7)
+    
+    // Ingresos de prueba
+    ingresos = [
+      { id: 1001, descripcion: "Sueldo Líquido Apoderado", monto: 1450000, fuente: "Global Corp SpA", fecha: `${currentMonthPref}-05`, periodicidad: "recurrente" },
+      { id: 1002, descripcion: "Proyecto Freelance UI", monto: 350000, fuente: "Cliente Particular", fecha: `${currentMonthPref}-15`, periodicidad: "único" },
+      { id: 1003, descripcion: "Sueldo Líquido Apoderado", monto: 1450000, fuente: "Global Corp SpA", fecha: `${prevMonthPref}-05`, periodicidad: "recurrente" },
+    ]
+
+    // Gastos de prueba
+    gastos = [
+      { id: 2001, descripcion: "Arriendo Departamento", monto: 480000, fecha: `${currentMonthPref}-02`, fechaInicio: `${currentMonthPref}-02`, categoriaId: 102, metodoPago: "Transferencia", periodicidad: "recurrente" },
+      { id: 2002, descripcion: "Compras Supermercado Jumbo", monto: 165000, fecha: `${currentMonthPref}-10`, fechaInicio: `${currentMonthPref}-10`, categoriaId: 103, metodoPago: "Tarjeta de Débito", periodicidad: "único" },
+      { id: 2003, descripcion: "Combustible Copec", monto: 50000, fecha: `${currentMonthPref}-12`, fechaInicio: `${currentMonthPref}-12`, categoriaId: 104, metodoPago: "Tarjeta de Crédito", periodicidad: "único" },
+      { id: 2004, descripcion: "Gasto Común Condominio", monto: 110000, fecha: `${currentMonthPref}-08`, fechaInicio: `${currentMonthPref}-08`, categoriaId: 102, metodoPago: "Transferencia", periodicidad: "recurrente" },
+      { id: 2005, descripcion: "Consulta Médica Pediatra", monto: 35000, fecha: `${currentMonthPref}-14`, fechaInicio: `${currentMonthPref}-14`, categoriaId: 105, metodoPago: "Efectivo", periodicidad: "único" },
+      { id: 2006, descripcion: "Arriendo Departamento", monto: 480000, fecha: `${prevMonthPref}-02`, fechaInicio: `${prevMonthPref}-02`, categoriaId: 102, metodoPago: "Transferencia", periodicidad: "recurrente" },
+      { id: 2007, descripcion: "Compras Supermercado Jumbo", monto: 150000, fecha: `${prevMonthPref}-10`, fechaInicio: `${prevMonthPref}-10`, categoriaId: 103, metodoPago: "Tarjeta de Débito", periodicidad: "único" },
+    ]
+
+    presupuestoAlimentacion = {
+      montoPresupuestado: 250000,
+      fechaInicio: `${currentMonthPref}-01`,
+      fechaRenovacion: `${currentMonthPref}-28`,
+    }
+
+    gastosAlimentacion = [
+      { id: 2002, descripcion: "Compras Supermercado Jumbo", monto: 165000, fecha: `${currentMonthPref}-10`, categoriaId: 103 },
+    ]
+  } else {
+    // Carga normal de base de datos
+    const [dbIngresos, dbGastos, dbCategorias] = await Promise.all([
+      getIngresos(),
+      getGastos(),
+      getCategorias(),
+    ])
+    ingresos = dbIngresos
+    gastos = dbGastos
+    categorias = dbCategorias
+
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+
+    const [dbPresupuesto, dbGastosAlim] = await Promise.all([
+      getPresupuestoAlimentacion(currentYear, currentMonth),
+      getGastosAlimentacion(currentYear, currentMonth),
+    ])
+    presupuestoAlimentacion = dbPresupuesto
+    gastosAlimentacion = dbGastosAlim
+  }
 
   return (
     <DashboardContent

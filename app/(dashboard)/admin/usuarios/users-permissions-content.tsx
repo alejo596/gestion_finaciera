@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { updateUserRole } from "@/lib/actions-user"
+import { updateUserRole, createSystemUser, deleteSystemUser } from "@/lib/actions-user"
 import { formatDate } from "@/lib/format"
 import {
   Card,
@@ -21,8 +21,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { Key, Users, Info, ShieldAlert } from "lucide-react"
+import { Key, Users, Info, ShieldAlert, Plus, Trash2 } from "lucide-react"
 
 type UsersPermissionsContentProps = {
   initialUsers: any[]
@@ -36,19 +47,28 @@ const ROLES = [
   { id: "apoderado", name: "Apoderado (Portal Escolar)" },
   { id: "admin_condominio", name: "Administrador de Condominio" },
   { id: "copropietario", name: "Copropietario (Portal Condominio)" },
+  { id: "invitado", name: "Usuario Invitado (Datos Ficticios)" },
 ]
 
 export function UsersPermissionsContent({ initialUsers }: UsersPermissionsContentProps) {
   const router = useRouter()
   const [users, setUsers] = useState(initialUsers)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
+  
+  // Registration Form Modal state
+  const [isOpen, setIsOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newEmail, setNewEmail] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [newRole, setNewRole] = useState("apoderado")
+  const [isCreating, setIsCreating] = useState(false)
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
+  const handleRoleChange = async (userId: string, newRoleValue: string) => {
     setIsUpdating(userId)
     try {
-      await updateUserRole(userId, newRole)
+      await updateUserRole(userId, newRoleValue)
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+        prev.map((u) => (u.id === userId ? { ...u, role: newRoleValue } : u))
       )
       toast.success("Rol y permisos del usuario actualizados con éxito")
       router.refresh()
@@ -59,15 +79,71 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
     }
   }
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newName.trim() || !newEmail.trim() || !newPassword.trim()) {
+      toast.error("Por favor completa todos los campos")
+      return
+    }
+
+    setIsCreating(true)
+    try {
+      await createSystemUser({
+        name: newName,
+        email: newEmail,
+        password: newPassword,
+        role: newRole,
+      })
+      toast.success("Usuario registrado exitosamente")
+      setIsOpen(false)
+      // Reset form
+      setNewName("")
+      setNewEmail("")
+      setNewPassword("")
+      setNewRole("apoderado")
+      
+      // Reload user list
+      router.refresh()
+      window.location.reload()
+    } catch (err: any) {
+      toast.error(err.message || "Error al registrar el usuario")
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al usuario "${userName}"?`)) {
+      return
+    }
+
+    try {
+      await deleteSystemUser(userId)
+      setUsers((prev) => prev.filter((u) => u.id !== userId))
+      toast.success("Usuario eliminado exitosamente")
+      router.refresh()
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar el usuario")
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in text-xs">
-      <div>
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
-          Gestión de Permisos y Usuarios
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Otorga roles y permisos de visualización de módulos a los usuarios registrados en la plataforma
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
+            Gestión de Permisos y Usuarios
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Registra nuevos perfiles y otorga roles de visualización a los usuarios del sistema
+          </p>
+        </div>
+        <Button
+          onClick={() => setIsOpen(true)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1.5"
+        >
+          <Plus className="h-4 w-4" /> Registrar Usuario
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -79,7 +155,7 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
               Usuarios Registrados
             </CardTitle>
             <CardDescription className="text-xs">
-              Asigna roles específicos para habilitar/deshabilitar la visibilidad de los módulos
+              Asigna roles específicos para habilitar la visibilidad de los portales correspondientes
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -90,7 +166,8 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
                     <TableHead className="text-xs font-semibold pl-6">Nombre de Usuario</TableHead>
                     <TableHead className="text-xs font-semibold">Correo Electrónico</TableHead>
                     <TableHead className="text-xs font-semibold">Fecha Registro</TableHead>
-                    <TableHead className="text-xs font-semibold pr-6">Permisos / Rol Habilitado</TableHead>
+                    <TableHead className="text-xs font-semibold">Permisos / Rol Habilitado</TableHead>
+                    <TableHead className="text-right text-xs font-semibold pr-6">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -104,7 +181,7 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
                       </TableCell>
                       <TableCell className="text-slate-500 py-3.5">{u.email}</TableCell>
                       <TableCell className="text-slate-500 py-3.5">{formatDate(u.createdAt)}</TableCell>
-                      <TableCell className="pr-6 py-3.5">
+                      <TableCell className="py-3.5">
                         <select
                           value={u.role}
                           disabled={isUpdating === u.id}
@@ -117,6 +194,16 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
                             </option>
                           ))}
                         </select>
+                      </TableCell>
+                      <TableCell className="text-right pr-6 py-3.5">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => handleDeleteUser(u.id, u.name)}
+                          className="text-rose-500 hover:text-rose-650 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -141,8 +228,12 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
                 <span>Habilita la visualización de TODOS los módulos de la plataforma: Finanzas del Hogar, Administración Escolar, Portal Escolar Apoderado, Administración de Condominio y Residente.</span>
               </div>
               <div>
+                <strong className="text-indigo-500 block text-xs font-bold text-rose-500">Invitado</strong>
+                <span>Acceso exclusivo a paneles y simuladores con **datos ficticios aislados** para pruebas del sistema sin afectar la base de datos real.</span>
+              </div>
+              <div>
                 <strong className="text-indigo-500 block text-xs">Apoderado</strong>
-                <span>Habilita de forma exclusiva el **Portal Escolar Apoderado** (consultas de cuotas, simulador de pagos, comprobantes y rendición de cuentas del curso). Oculta el hogar y los condominios.</span>
+                <span>Habilita de forma exclusiva el **Portal Escolar Apoderado** (consultas de cuotas, simulador de pagos, comprobantes y egresos del curso).</span>
               </div>
               <div>
                 <strong className="text-indigo-500 block text-xs">Admin Curso</strong>
@@ -150,11 +241,11 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
               </div>
               <div>
                 <strong className="text-indigo-500 block text-xs">Admin Condominio</strong>
-                <span>Habilita el panel de administración de condominios (crear departamentos, emisión masiva de gastos comunes por prorrateo y registrar egresos del condominio).</span>
+                <span>Habilita el panel de administración de condominios (crear departamentos, emisión masiva de gastos comunes por prorrateo y egresos).</span>
               </div>
               <div>
                 <strong className="text-indigo-500 block text-xs">Copropietario</strong>
-                <span>Habilita el portal residente de condominios (revisión de cobros, carro de pago de gastos comunes, comprobantes e historial de egresos).</span>
+                <span>Habilita el portal residente de condominios (revisión de cobros, carro de pago de gastos comunes, comprobantes).</span>
               </div>
               <div>
                 <strong className="text-indigo-500 block text-xs">General / Hogar</strong>
@@ -173,6 +264,94 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
           </Card>
         </div>
       </div>
+
+      {/* Register User Dialog */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs">
+          <form onSubmit={handleCreateUser}>
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-slate-800 dark:text-white">Registrar Nuevo Usuario</DialogTitle>
+              <DialogDescription className="text-xs">
+                Crea una nueva cuenta de acceso asignándole un rol y privilegios iniciales.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name" className="text-slate-600 dark:text-slate-400 font-bold">Nombre Completo</Label>
+                <Input
+                  id="name"
+                  placeholder="Ej: Juan Pérez"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="text-xs bg-slate-50 dark:bg-slate-950"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="email" className="text-slate-600 dark:text-slate-400 font-bold">Correo Electrónico</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="juan.perez@correo.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="text-xs bg-slate-50 dark:bg-slate-950"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="pass" className="text-slate-600 dark:text-slate-400 font-bold">Contraseña</Label>
+                <Input
+                  id="pass"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="text-xs bg-slate-50 dark:bg-slate-950"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="role-select" className="text-slate-600 dark:text-slate-400 font-bold">Rol y Permisos</Label>
+                <select
+                  id="role-select"
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="w-full rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-750 dark:border-slate-800 dark:bg-slate-950 outline-none font-medium"
+                >
+                  {ROLES.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+                className="text-xs border-slate-200 hover:bg-slate-50 text-slate-700"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreating}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+              >
+                {isCreating ? "Registrando..." : "Registrar Cuenta"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

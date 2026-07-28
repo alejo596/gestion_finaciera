@@ -5,6 +5,7 @@ import { useState } from "react"
 import { formatCLP, formatDate } from "@/lib/format"
 import {
   createGasto,
+  updateGasto,
   deleteGasto,
   createCategoria,
   deleteCategoria,
@@ -44,7 +45,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Plus, Trash2, Filter, Tags, ArrowDownRight } from "lucide-react"
+import { Plus, Trash2, Filter, Tags, ArrowDownRight, Edit } from "lucide-react"
 
 type GastosContentProps = {
   initialGastos: any[]
@@ -68,7 +69,7 @@ export function GastosContent({
   initialGastos,
   initialCategorias,
 }: GastosContentProps) {
-  const [gastos, setGastos] = useState(initialGastos.map((g) => ({ ...g, fecha: g.fecha || g.fechaInicio })))
+  const [gastos, setGastos] = useState(initialGastos.map((g) => ({ ...g, fecha: (g as any).fecha || g.fechaInicio } as any)))
   const [categorias, setCategorias] = useState(initialCategorias)
 
   // Modals and form states
@@ -81,6 +82,7 @@ export function GastosContent({
   const [expenseCategoria, setExpenseCategoria] = useState("null")
   const [expenseMetodo, setExpenseMetodo] = useState("Efectivo")
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false)
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null)
 
   // Category form states
   const [newCatName, setNewCatName] = useState("")
@@ -105,6 +107,17 @@ export function GastosContent({
     return matchesCategory && matchesSearch
   })
 
+  // Start Edit Handler
+  const handleStartEditExpense = (g: any) => {
+    setEditingExpenseId(g.id)
+    setExpenseDesc(g.descripcion)
+    setExpenseMonto(String(g.monto))
+    setExpenseFecha(g.fecha || g.fechaInicio)
+    setExpenseCategoria(g.categoriaId ? String(g.categoriaId) : "null")
+    setExpenseMetodo(g.metodoPago || "Efectivo")
+    setIsExpenseOpen(true)
+  }
+
   // Submit handers
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,24 +128,44 @@ export function GastosContent({
 
     setIsSubmittingExpense(true)
     try {
-      const newG = await createGasto({
-        descripcion: expenseDesc,
-        monto: Number(expenseMonto),
-        fecha: expenseFecha,
-        categoriaId: expenseCategoria === "null" ? null : Number(expenseCategoria),
-        metodoPago: expenseMetodo,
-      })
+      if (editingExpenseId) {
+        const updated = await updateGasto(editingExpenseId, {
+          descripcion: expenseDesc,
+          monto: Number(expenseMonto),
+          fecha: expenseFecha,
+          categoriaId: expenseCategoria === "null" ? null : Number(expenseCategoria),
+          metodoPago: expenseMetodo,
+        })
 
-      setGastos((prev) => [{ ...newG, fecha: newG.fecha || newG.fechaInicio }, ...prev])
-      setIsExpenseOpen(false)
-      // reset
-      setExpenseDesc("")
-      setExpenseMonto("")
-      setExpenseCategoria("null")
-      setExpenseMetodo("Efectivo")
-      toast.success("Gasto registrado correctamente")
+        setGastos((prev) =>
+          prev.map((g) => (g.id === editingExpenseId ? { ...updated, fecha: (updated as any).fecha || updated.fechaInicio } as any : g))
+        )
+        setIsExpenseOpen(false)
+        setEditingExpenseId(null)
+        setExpenseDesc("")
+        setExpenseMonto("")
+        setExpenseCategoria("null")
+        setExpenseMetodo("Efectivo")
+        toast.success("Gasto actualizado correctamente")
+      } else {
+        const newG = await createGasto({
+          descripcion: expenseDesc,
+          monto: Number(expenseMonto),
+          fecha: expenseFecha,
+          categoriaId: expenseCategoria === "null" ? null : Number(expenseCategoria),
+          metodoPago: expenseMetodo,
+        })
+
+        setGastos((prev) => [{ ...(newG as any), fecha: (newG as any).fecha || (newG as any).fechaInicio } as any, ...prev])
+        setIsExpenseOpen(false)
+        setExpenseDesc("")
+        setExpenseMonto("")
+        setExpenseCategoria("null")
+        setExpenseMetodo("Efectivo")
+        toast.success("Gasto registrado correctamente")
+      }
     } catch (err: any) {
-      toast.error(err.message || "Error al registrar el gasto")
+      toast.error(err.message || "Error al procesar el gasto")
     } finally {
       setIsSubmittingExpense(false)
     }
@@ -205,7 +238,14 @@ export function GastosContent({
         </div>
         <div>
           <Button
-            onClick={() => setIsExpenseOpen(true)}
+            onClick={() => {
+              setEditingExpenseId(null)
+              setExpenseDesc("")
+              setExpenseMonto("")
+              setExpenseCategoria("null")
+              setExpenseMetodo("Efectivo")
+              setIsExpenseOpen(true)
+            }}
             className="bg-rose-600 hover:bg-rose-500 text-white font-medium flex items-center gap-2 shadow-lg shadow-rose-600/10"
           >
             <Plus className="h-4 w-4" /> Registrar Gasto
@@ -307,15 +347,24 @@ export function GastosContent({
                           <TableCell className="text-right font-bold text-xs py-4 text-rose-500">
                             {formatCLP(g.monto)}
                           </TableCell>
-                          <TableCell className="pr-6 py-4">
+                          <TableCell className="pr-6 py-4 flex justify-end gap-1">
                             <Button
                               variant="ghost"
-                              size="icon-sm"
+                              size="icon-xs"
+                              onClick={() => handleStartEditExpense(g)}
+                              className="text-indigo-500 hover:text-indigo-650 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                              title="Editar gasto"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
                               onClick={() => handleDeleteExpense(g.id)}
-                              className="text-slate-400 hover:text-rose-500 transition-colors"
+                              className="text-rose-500 hover:text-rose-650 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                               title="Eliminar gasto"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -430,9 +479,11 @@ export function GastosContent({
       <Dialog open={isExpenseOpen} onOpenChange={setIsExpenseOpen}>
         <DialogContent className="border-slate-200 bg-white text-slate-850 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
           <DialogHeader>
-            <DialogTitle className="font-bold text-lg">Registrar Nuevo Gasto</DialogTitle>
+            <DialogTitle className="font-bold text-lg">
+              {editingExpenseId ? "Editar Gasto" : "Registrar Nuevo Gasto"}
+            </DialogTitle>
             <DialogDescription className="text-slate-400 text-xs">
-              Ingresa los detalles para registrar un gasto general del hogar.
+              {editingExpenseId ? "Modifica los detalles del gasto seleccionado." : "Ingresa los detalles para registrar un gasto general del hogar."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddExpense}>

@@ -34,10 +34,8 @@ export default function SignUpPage() {
           email,
           password,
           name,
-          data: {
-            role: role,
-          },
-        },
+          role,
+        } as any,
         {
           onRequest: () => setIsLoading(true),
           onSuccess: () => {

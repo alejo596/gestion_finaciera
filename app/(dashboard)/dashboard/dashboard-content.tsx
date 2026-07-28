@@ -3,8 +3,9 @@
 import * as React from "react"
 import { useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { formatCLP, formatCLPCompact, formatDate } from "@/lib/format"
-import { createGasto, createIngreso } from "@/lib/actions"
+import { createGasto, createIngreso, updateGasto, updateIngreso, deleteGasto, deleteIngreso } from "@/lib/actions"
 import {
   Card,
   CardContent,
@@ -50,6 +51,8 @@ import {
   ArrowRight,
   TrendingUp,
   Percent,
+  Edit,
+  Trash2,
 } from "lucide-react"
 
 // Recharts components directly (we can style them via classes or inline config)
@@ -84,9 +87,32 @@ export function DashboardContent({
   gastosAlimentacion,
 }: DashboardContentProps) {
   const [ingresos, setIngresos] = useState(initialIngresos)
-  const [gastos, setGastos] = useState(initialGastos.map((g) => ({ ...g, fecha: g.fecha || g.fechaInicio })))
+  const [gastos, setGastos] = useState(initialGastos.map((g) => ({ ...g, fecha: (g as any).fecha || g.fechaInicio } as any)))
   const [isExpenseOpen, setIsExpenseOpen] = useState(false)
   const [isIncomeOpen, setIsIncomeOpen] = useState(false)
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null)
+  const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null)
+
+  const searchParams = useSearchParams()
+
+  React.useEffect(() => {
+    const addParam = searchParams.get("add")
+    if (addParam === "income") {
+      setEditingIncomeId(null)
+      setIncomeDesc("")
+      setIncomeMonto("")
+      setIncomeFuente("")
+      setIncomeRecurrente(false)
+      setIsIncomeOpen(true)
+    } else if (addParam === "expense") {
+      setEditingExpenseId(null)
+      setExpenseDesc("")
+      setExpenseMonto("")
+      setExpenseCategoria("null")
+      setExpenseMetodo("Efectivo")
+      setIsExpenseOpen(true)
+    }
+  }, [searchParams])
 
   // Form states
   const [expenseDesc, setExpenseDesc] = useState("")
@@ -147,7 +173,7 @@ export function DashboardContent({
   }))
 
   // 2. Multi-month cashflow history (last 6 months)
-  const ultimosMeses = []
+  const ultimosMeses: any[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" })
@@ -180,6 +206,47 @@ export function DashboardContent({
     .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
     .slice(0, 5)
 
+  // Start Edit / Delete Handlers
+  const handleStartEdit = (tx: any) => {
+    if (tx.type === "income") {
+      setEditingIncomeId(tx.id)
+      setIncomeDesc(tx.descripcion)
+      setIncomeMonto(String(tx.monto))
+      setIncomeFecha(tx.fecha)
+      setIncomeFuente(tx.fuente || "")
+      setIncomeRecurrente(tx.periodicidad === "recurrente" || tx.recurrente || false)
+      setIsIncomeOpen(true)
+    } else {
+      setEditingExpenseId(tx.id)
+      setExpenseDesc(tx.descripcion)
+      setExpenseMonto(String(tx.monto))
+      setExpenseFecha(tx.fecha || tx.fechaInicio)
+      setExpenseCategoria(tx.categoriaId ? String(tx.categoriaId) : "null")
+      setExpenseMetodo(tx.metodoPago || "Efectivo")
+      setIsExpenseOpen(true)
+    }
+  }
+
+  const handleDelete = async (tx: any) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar este ${tx.type === "income" ? "ingreso" : "gasto"}?`)) {
+      return
+    }
+
+    try {
+      if (tx.type === "income") {
+        await deleteIngreso(tx.id)
+        setIngresos((prev) => prev.filter((i) => i.id !== tx.id))
+        toast.success("Ingreso eliminado correctamente")
+      } else {
+        await deleteGasto(tx.id)
+        setGastos((prev) => prev.filter((g) => g.id !== tx.id))
+        toast.success("Gasto eliminado correctamente")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar el registro")
+    }
+  }
+
   // Submit handlers
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -190,22 +257,39 @@ export function DashboardContent({
 
     setIsSubmittingExpense(true)
     try {
-      const newG = await createGasto({
-        descripcion: expenseDesc,
-        monto: Number(expenseMonto),
-        fecha: expenseFecha,
-        categoriaId: expenseCategoria === "null" ? null : Number(expenseCategoria),
-        metodoPago: expenseMetodo,
-      })
+      if (editingExpenseId) {
+        const updated = await updateGasto(editingExpenseId, {
+          descripcion: expenseDesc,
+          monto: Number(expenseMonto),
+          fecha: expenseFecha,
+          categoriaId: expenseCategoria === "null" ? null : Number(expenseCategoria),
+          metodoPago: expenseMetodo,
+        })
+        setGastos((prev) => prev.map((g) => g.id === editingExpenseId ? { ...updated, fecha: (updated as any).fecha || updated.fechaInicio } as any : g))
+        setIsExpenseOpen(false)
+        setEditingExpenseId(null)
+        setExpenseDesc("")
+        setExpenseMonto("")
+        setExpenseCategoria("null")
+        setExpenseMetodo("Efectivo")
+        toast.success("Gasto actualizado correctamente")
+      } else {
+        const newG = await createGasto({
+          descripcion: expenseDesc,
+          monto: Number(expenseMonto),
+          fecha: expenseFecha,
+          categoriaId: expenseCategoria === "null" ? null : Number(expenseCategoria),
+          metodoPago: expenseMetodo,
+        })
 
-      setGastos((prev) => [newG, ...prev])
-      setIsExpenseOpen(false)
-      // reset
-      setExpenseDesc("")
-      setExpenseMonto("")
-      setExpenseCategoria("null")
-      setExpenseMetodo("Efectivo")
-      toast.success("Gasto registrado correctamente")
+        setGastos((prev) => [newG, ...prev])
+        setIsExpenseOpen(false)
+        setExpenseDesc("")
+        setExpenseMonto("")
+        setExpenseCategoria("null")
+        setExpenseMetodo("Efectivo")
+        toast.success("Gasto registrado correctamente")
+      }
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el gasto")
     } finally {
@@ -222,22 +306,39 @@ export function DashboardContent({
 
     setIsSubmittingIncome(true)
     try {
-      const newI = await createIngreso({
-        descripcion: incomeDesc,
-        monto: Number(incomeMonto),
-        fecha: incomeFecha,
-        fuente: incomeFuente,
-        recurrente: incomeRecurrente,
-      })
+      if (editingIncomeId) {
+        const updated = await updateIngreso(editingIncomeId, {
+          descripcion: incomeDesc,
+          monto: Number(incomeMonto),
+          fecha: incomeFecha,
+          fuente: incomeFuente,
+          periodicidad: incomeRecurrente ? "recurrente" : "único",
+        })
+        setIngresos((prev) => prev.map((i) => i.id === editingIncomeId ? updated : i))
+        setIsIncomeOpen(false)
+        setEditingIncomeId(null)
+        setIncomeDesc("")
+        setIncomeMonto("")
+        setIncomeFuente("")
+        setIncomeRecurrente(false)
+        toast.success("Ingreso actualizado correctamente")
+      } else {
+        const newI = await createIngreso({
+          descripcion: incomeDesc,
+          monto: Number(incomeMonto),
+          fecha: incomeFecha,
+          fuente: incomeFuente,
+          periodicidad: incomeRecurrente ? "recurrente" : "único",
+        })
 
-      setIngresos((prev) => [newI, ...prev])
-      setIsIncomeOpen(false)
-      // reset
-      setIncomeDesc("")
-      setIncomeMonto("")
-      setIncomeFuente("")
-      setIncomeRecurrente(false)
-      toast.success("Ingreso registrado correctamente")
+        setIngresos((prev) => [newI, ...prev])
+        setIsIncomeOpen(false)
+        setIncomeDesc("")
+        setIncomeMonto("")
+        setIncomeFuente("")
+        setIncomeRecurrente(false)
+        toast.success("Ingreso registrado correctamente")
+      }
     } catch (err: any) {
       toast.error(err.message || "Error al guardar el ingreso")
     } finally {
@@ -266,13 +367,27 @@ export function DashboardContent({
         </div>
         <div className="flex gap-3">
           <Button
-            onClick={() => setIsIncomeOpen(true)}
+            onClick={() => {
+              setEditingIncomeId(null)
+              setIncomeDesc("")
+              setIncomeMonto("")
+              setIncomeFuente("")
+              setIncomeRecurrente(false)
+              setIsIncomeOpen(true)
+            }}
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-2"
           >
             <Plus className="h-4 w-4" /> Ingreso
           </Button>
           <Button
-            onClick={() => setIsExpenseOpen(true)}
+            onClick={() => {
+              setEditingExpenseId(null)
+              setExpenseDesc("")
+              setExpenseMonto("")
+              setExpenseCategoria("null")
+              setExpenseMetodo("Efectivo")
+              setIsExpenseOpen(true)
+            }}
             className="bg-rose-600 hover:bg-rose-500 text-white font-medium flex items-center gap-2"
           >
             <Plus className="h-4 w-4" /> Gasto
@@ -493,6 +608,7 @@ export function DashboardContent({
                       <TableHead className="text-xs font-semibold">Descripción</TableHead>
                       <TableHead className="text-xs font-semibold">Fecha</TableHead>
                       <TableHead className="text-right text-xs font-semibold">Monto</TableHead>
+                      <TableHead className="text-right text-xs font-semibold pr-6">Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -514,6 +630,24 @@ export function DashboardContent({
                           <TableCell className="text-slate-500 text-xs py-3">{formatDate(tx.fecha)}</TableCell>
                           <TableCell className={`text-right font-semibold text-xs py-3 ${isInc ? "text-emerald-500" : "text-rose-500"}`}>
                             {isInc ? "+" : "-"} {formatCLP(tx.monto)}
+                          </TableCell>
+                          <TableCell className="text-right pr-6 py-3 flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => handleStartEdit(tx)}
+                              className="text-indigo-500 hover:text-indigo-650 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => handleDelete(tx)}
+                              className="text-rose-500 hover:text-rose-650 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       )
@@ -578,9 +712,11 @@ export function DashboardContent({
       <Dialog open={isExpenseOpen} onOpenChange={setIsExpenseOpen}>
         <DialogContent className="border-slate-200 bg-white text-slate-850 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
           <DialogHeader>
-            <DialogTitle className="font-bold text-lg">Registrar Nuevo Gasto</DialogTitle>
+            <DialogTitle className="font-bold text-lg">
+              {editingExpenseId ? "Editar Gasto" : "Registrar Nuevo Gasto"}
+            </DialogTitle>
             <DialogDescription className="text-slate-400 text-xs">
-              Ingresa los detalles para registrar un gasto general del hogar.
+              {editingExpenseId ? "Modifica los detalles del gasto seleccionado." : "Ingresa los detalles para registrar un gasto general del hogar."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddExpense}>
@@ -663,7 +799,7 @@ export function DashboardContent({
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmittingExpense} className="bg-rose-600 text-white hover:bg-rose-500">
-                {isSubmittingExpense ? "Guardando..." : "Registrar Gasto"}
+                {isSubmittingExpense ? "Guardando..." : editingExpenseId ? "Actualizar Gasto" : "Registrar Gasto"}
               </Button>
             </DialogFooter>
           </form>
@@ -674,9 +810,11 @@ export function DashboardContent({
       <Dialog open={isIncomeOpen} onOpenChange={setIsIncomeOpen}>
         <DialogContent className="border-slate-200 bg-white text-slate-850 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
           <DialogHeader>
-            <DialogTitle className="font-bold text-lg">Registrar Nuevo Ingreso</DialogTitle>
+            <DialogTitle className="font-bold text-lg">
+              {editingIncomeId ? "Editar Ingreso" : "Registrar Nuevo Ingreso"}
+            </DialogTitle>
             <DialogDescription className="text-slate-400 text-xs">
-              Ingresa los detalles para registrar un ingreso al hogar.
+              {editingIncomeId ? "Modifica los detalles del ingreso seleccionado." : "Ingresa los detalles para registrar un ingreso al hogar."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddIncome}>
@@ -748,7 +886,7 @@ export function DashboardContent({
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmittingIncome} className="bg-emerald-600 text-white hover:bg-emerald-500">
-                {isSubmittingIncome ? "Guardando..." : "Registrar Ingreso"}
+                {isSubmittingIncome ? "Guardando..." : editingIncomeId ? "Actualizar Ingreso" : "Registrar Ingreso"}
               </Button>
             </DialogFooter>
           </form>

@@ -115,6 +115,45 @@ export async function deleteGasto(id: number) {
   revalidatePath("/dashboard")
 }
 
+export async function updateGasto(id: number, data: {
+  categoriaId: number | null
+  descripcion: string
+  monto: number
+  fechaInicio?: string
+  fecha?: string
+  fechaVencimiento?: string
+  periodicidad?: string
+  estado?: string
+  metodoPago?: string
+  observaciones?: string
+}) {
+  const userId = await getUserId()
+  const fInicio = data.fechaInicio || data.fecha
+  if (!data.descripcion.trim()) throw new Error("La descripción es obligatoria")
+  if (data.monto <= 0) throw new Error("El monto debe ser mayor que cero")
+  if (!fInicio) throw new Error("La fecha de inicio es obligatoria")
+
+  const [updated] = await db
+    .update(gastosHogar)
+    .set({
+      categoriaId: data.categoriaId,
+      descripcion: data.descripcion.trim(),
+      monto: Math.round(data.monto),
+      fechaInicio: fInicio,
+      fechaVencimiento: data.fechaVencimiento || null,
+      periodicidad: data.periodicidad || "único",
+      estado: data.estado || "pendiente",
+      metodoPago: data.metodoPago || "Efectivo",
+      observaciones: data.observaciones?.trim() || null,
+    })
+    .where(and(eq(gastosHogar.userId, userId), eq(gastosHogar.id, id)))
+    .returning()
+
+  revalidatePath("/gastos")
+  revalidatePath("/dashboard")
+  return updated
+}
+
 // --- INGRESOS HOGAR ---
 export async function getIngresos() {
   const userId = await getUserId()
@@ -166,6 +205,39 @@ export async function deleteIngreso(id: number) {
 
   revalidatePath("/ingresos")
   revalidatePath("/dashboard")
+}
+
+export async function updateIngreso(id: number, data: {
+  descripcion: string
+  monto: number
+  fuente?: string
+  fecha: string
+  periodicidad?: string
+  responsable?: string
+  observaciones?: string
+}) {
+  const userId = await getUserId()
+  if (!data.descripcion.trim()) throw new Error("La descripción es obligatoria")
+  if (data.monto <= 0) throw new Error("El monto debe ser mayor que cero")
+  if (!data.fecha) throw new Error("La fecha es obligatoria")
+
+  const [updated] = await db
+    .update(ingresosHogar)
+    .set({
+      descripcion: data.descripcion.trim(),
+      monto: Math.round(data.monto),
+      fuente: data.fuente?.trim() || null,
+      fecha: data.fecha,
+      periodicidad: data.periodicidad || "único",
+      responsable: data.responsable?.trim() || null,
+      observaciones: data.observaciones?.trim() || null,
+    })
+    .where(and(eq(ingresosHogar.userId, userId), eq(ingresosHogar.id, id)))
+    .returning()
+
+  revalidatePath("/ingresos")
+  revalidatePath("/dashboard")
+  return updated
 }
 
 // --- PRESUPUESTOS ALIMENTACIÓN ---

@@ -24,6 +24,7 @@ import {
   Receipt,
   BookOpen,
   Key,
+  Plus,
 } from "lucide-react"
 
 type LandingDashboardContentProps = {
@@ -104,6 +105,26 @@ export function LandingDashboardContent({
               <p className="text-xs text-slate-400 leading-normal">
                 Visualiza el flujo de caja, categoriza tus egresos mensuales y mantén el termómetro de tu presupuesto de alimentación bajo control.
               </p>
+
+              {/* Quick Actions for Household finances */}
+              {(userRole === "webmaster" || userRole === "admin" || userRole === "invitado") && (
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                  <Button
+                    render={<Link href="/hogar/dashboard?add=income" />}
+                    variant="outline"
+                    className="flex items-center justify-center gap-1.5 border-emerald-500/20 bg-emerald-50/50 hover:bg-emerald-100/50 text-emerald-600 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/40 dark:text-emerald-400 text-xs font-bold transition-all py-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> + Ingreso
+                  </Button>
+                  <Button
+                    render={<Link href="/hogar/dashboard?add=expense" />}
+                    variant="outline"
+                    className="flex items-center justify-center gap-1.5 border-rose-500/20 bg-rose-50/50 hover:bg-rose-100/50 text-rose-600 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 dark:text-rose-400 text-xs font-bold transition-all py-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> + Gasto
+                  </Button>
+                </div>
+              )}
             </div>
             <Button render={<Link href="/hogar/dashboard" />} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold mt-4 gap-2">
               Entrar a Finanzas Hogar <ArrowRight className="h-4 w-4" />

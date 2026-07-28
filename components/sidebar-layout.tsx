@@ -111,21 +111,22 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
 
   // --- MAPPING DE ROLES Y PERMISOS DE MENÚ ---
   const isWebmaster = userRole === "webmaster"
+  const isInvitado = userRole === "invitado"
   
   // 1. Mostrar Finanzas del Hogar (solo Webmaster o Admin General)
-  const showHogar = isWebmaster || userRole === "admin"
+  const showHogar = isWebmaster || userRole === "admin" || isInvitado
 
   // 2. Mostrar Portal Escolar Apoderado (Webmaster, Apoderado o Admin Curso)
-  const showPortalEscolar = isWebmaster || userRole === "apoderado" || userRole === "admin_curso"
+  const showPortalEscolar = isWebmaster || userRole === "apoderado" || userRole === "admin_curso" || isInvitado
 
   // 3. Mostrar Administración Escolar (Webmaster, Admin Colegio o Admin Curso)
-  const showAdminEscolar = isWebmaster || userRole === "admin_colegio" || userRole === "admin_curso"
+  const showAdminEscolar = isWebmaster || userRole === "admin_colegio" || userRole === "admin_curso" || isInvitado
 
   // 4. Mostrar Portal Condominio Residente (Webmaster, Copropietario)
-  const showPortalCondo = isWebmaster || userRole === "copropietario"
+  const showPortalCondo = isWebmaster || userRole === "copropietario" || isInvitado
 
   // 5. Mostrar Administración de Condominios (Webmaster, Admin Condominio)
-  const showAdminCondo = isWebmaster || userRole === "admin_condominio"
+  const showAdminCondo = isWebmaster || userRole === "admin_condominio" || isInvitado
 
   return (
     <SidebarProvider>

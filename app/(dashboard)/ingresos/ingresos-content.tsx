@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { formatCLP, formatDate } from "@/lib/format"
-import { createIngreso, deleteIngreso } from "@/lib/actions"
+import { createIngreso, updateIngreso, deleteIngreso } from "@/lib/actions"
 import {
   Card,
   CardContent,
@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Plus, Trash2, ArrowUpRight, Check, X } from "lucide-react"
+import { Plus, Trash2, ArrowUpRight, Check, X, Edit } from "lucide-react"
 
 type IngresosContentProps = {
   initialIngresos: any[]
@@ -41,6 +41,7 @@ type IngresosContentProps = {
 export function IngresosContent({ initialIngresos }: IngresosContentProps) {
   const [ingresos, setIngresos] = useState(initialIngresos)
   const [isIncomeOpen, setIsIncomeOpen] = useState(false)
+  const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null)
 
   // Form states
   const [incomeDesc, setIncomeDesc] = useState("")
@@ -62,6 +63,17 @@ export function IngresosContent({ initialIngresos }: IngresosContentProps) {
     return matchesSearch
   })
 
+  // Start Edit Handler
+  const handleStartEditIncome = (i: any) => {
+    setEditingIncomeId(i.id)
+    setIncomeDesc(i.descripcion)
+    setIncomeMonto(String(i.monto))
+    setIncomeFecha(i.fecha)
+    setIncomeFuente(i.fuente || "")
+    setIncomeRecurrente(i.periodicidad === "recurrente" || i.recurrente || false)
+    setIsIncomeOpen(true)
+  }
+
   // Submit handers
   const handleAddIncome = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -72,24 +84,43 @@ export function IngresosContent({ initialIngresos }: IngresosContentProps) {
 
     setIsSubmittingIncome(true)
     try {
-      const newI = await createIngreso({
-        descripcion: incomeDesc,
-        monto: Number(incomeMonto),
-        fecha: incomeFecha,
-        fuente: incomeFuente,
-        recurrente: incomeRecurrente,
-      })
+      if (editingIncomeId) {
+        const updated = await updateIngreso(editingIncomeId, {
+          descripcion: incomeDesc,
+          monto: Number(incomeMonto),
+          fecha: incomeFecha,
+          fuente: incomeFuente,
+          periodicidad: incomeRecurrente ? "recurrente" : "único",
+        })
+        setIngresos((prev) =>
+          prev.map((i) => (i.id === editingIncomeId ? updated : i))
+        )
+        setIsIncomeOpen(false)
+        setEditingIncomeId(null)
+        setIncomeDesc("")
+        setIncomeMonto("")
+        setIncomeFuente("")
+        setIncomeRecurrente(false)
+        toast.success("Ingreso actualizado correctamente")
+      } else {
+        const newI = await createIngreso({
+          descripcion: incomeDesc,
+          monto: Number(incomeMonto),
+          fecha: incomeFecha,
+          fuente: incomeFuente,
+          periodicidad: incomeRecurrente ? "recurrente" : "único",
+        })
 
-      setIngresos((prev) => [newI, ...prev])
-      setIsIncomeOpen(false)
-      // reset
-      setIncomeDesc("")
-      setIncomeMonto("")
-      setIncomeFuente("")
-      setIncomeRecurrente(false)
-      toast.success("Ingreso registrado correctamente")
+        setIngresos((prev) => [newI, ...prev])
+        setIsIncomeOpen(false)
+        setIncomeDesc("")
+        setIncomeMonto("")
+        setIncomeFuente("")
+        setIncomeRecurrente(false)
+        toast.success("Ingreso registrado correctamente")
+      }
     } catch (err: any) {
-      toast.error(err.message || "Error al registrar el ingreso")
+      toast.error(err.message || "Error al procesar el ingreso")
     } finally {
       setIsSubmittingIncome(false)
     }
@@ -121,7 +152,14 @@ export function IngresosContent({ initialIngresos }: IngresosContentProps) {
         </div>
         <div>
           <Button
-            onClick={() => setIsIncomeOpen(true)}
+            onClick={() => {
+              setEditingIncomeId(null)
+              setIncomeDesc("")
+              setIncomeMonto("")
+              setIncomeFuente("")
+              setIncomeRecurrente(false)
+              setIsIncomeOpen(true)
+            }}
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-2 shadow-lg shadow-emerald-600/10"
           >
             <Plus className="h-4 w-4" /> Registrar Ingreso
@@ -203,15 +241,24 @@ export function IngresosContent({ initialIngresos }: IngresosContentProps) {
                       <TableCell className="text-right font-bold text-xs py-4 text-emerald-600 dark:text-emerald-400">
                         {formatCLP(i.monto)}
                       </TableCell>
-                      <TableCell className="pr-6 py-4">
+                      <TableCell className="pr-6 py-4 flex justify-end gap-1">
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon-xs"
+                          onClick={() => handleStartEditIncome(i)}
+                          className="text-indigo-500 hover:text-indigo-650 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                          title="Editar ingreso"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => handleDeleteIncome(i.id)}
-                          className="text-slate-400 hover:text-rose-500 transition-colors"
+                          className="text-rose-500 hover:text-rose-650 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                           title="Eliminar ingreso"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -227,9 +274,11 @@ export function IngresosContent({ initialIngresos }: IngresosContentProps) {
       <Dialog open={isIncomeOpen} onOpenChange={setIsIncomeOpen}>
         <DialogContent className="border-slate-200 bg-white text-slate-850 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
           <DialogHeader>
-            <DialogTitle className="font-bold text-lg">Registrar Nuevo Ingreso</DialogTitle>
+            <DialogTitle className="font-bold text-lg">
+              {editingIncomeId ? "Editar Ingreso" : "Registrar Nuevo Ingreso"}
+            </DialogTitle>
             <DialogDescription className="text-slate-400 text-xs">
-              Ingresa los detalles para registrar un ingreso al hogar.
+              {editingIncomeId ? "Modifica los detalles del ingreso seleccionado." : "Ingresa los detalles para registrar un ingreso al hogar."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddIncome}>
@@ -301,7 +350,7 @@ export function IngresosContent({ initialIngresos }: IngresosContentProps) {
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmittingIncome} className="bg-emerald-600 text-white hover:bg-emerald-500">
-                {isSubmittingIncome ? "Guardando..." : "Registrar Ingreso"}
+                {isSubmittingIncome ? "Guardando..." : editingIncomeId ? "Actualizar Ingreso" : "Registrar Ingreso"}
               </Button>
             </DialogFooter>
           </form>
