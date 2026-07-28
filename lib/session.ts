@@ -7,6 +7,8 @@ export type SessionUser = {
   name: string
   email: string
   role: string
+  familyId: string | null
+  status: string
 }
 
 // Devuelve la sesión actual o null.
@@ -15,11 +17,31 @@ export async function getSession() {
 }
 
 // Devuelve el usuario autenticado o redirige a /sign-in.
-export async function requireUser(): Promise<SessionUser> {
+export async function requireUser(allowTemp = false): Promise<SessionUser> {
   const session = await getSession()
   if (!session?.user) redirect("/sign-in")
-  const u = session.user as { id: string; name: string; email: string; role?: string }
-  return { id: u.id, name: u.name, email: u.email, role: u.role ?? "apoderado" }
+  const u = session.user as any
+  
+  if (u.status === "cambio_obligatorio") {
+    if (u.tempPasswordExpiresAt) {
+      const expires = new Date(u.tempPasswordExpiresAt)
+      if (expires < new Date()) {
+        redirect("/sign-in?error=expired")
+      }
+    }
+    if (!allowTemp) {
+      redirect("/change-password")
+    }
+  }
+  
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role ?? "apoderado",
+    familyId: u.familyId ?? null,
+    status: u.status ?? "activo",
+  }
 }
 
 // Devuelve solo el id del usuario autenticado (para server actions).

@@ -32,6 +32,19 @@ export const auth = betterAuth({
         required: false,
         defaultValue: "apoderado",
       },
+      familyId: {
+        type: "string",
+        required: false,
+      },
+      status: {
+        type: "string",
+        required: false,
+        defaultValue: "activo",
+      },
+      tempPasswordExpiresAt: {
+        type: "number",
+        required: false,
+      },
     },
   },
   trustedOrigins: [

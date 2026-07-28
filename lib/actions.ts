@@ -7,18 +7,31 @@ import {
   gastosHogar,
   presupuestosAlimentacion,
   gastosAlimentacion,
+  user,
 } from "@/lib/db/schema"
-import { getUserId } from "@/lib/session"
-import { eq, and, desc, sql } from "drizzle-orm"
+import { getUserId, requireUser } from "@/lib/session"
+import { eq, and, desc, sql, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+
+async function getAllowedUserIds() {
+  const currentUser = await requireUser()
+  if (currentUser.familyId) {
+    const familyMembers = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.familyId, currentUser.familyId))
+    return familyMembers.map((m) => m.id)
+  }
+  return [currentUser.id]
+}
 
 // --- CATEGORÍAS ---
 export async function getCategorias() {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   return db
     .select()
     .from(categoriasGastos)
-    .where(eq(categoriasGastos.userId, userId))
+    .where(inArray(categoriasGastos.userId, userIds))
     .orderBy(desc(categoriasGastos.createdAt))
 }
 
@@ -41,16 +54,16 @@ export async function createCategoria(nombre: string, color: string) {
 }
 
 export async function deleteCategoria(id: number) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   
   await db
     .update(gastosHogar)
     .set({ categoriaId: null })
-    .where(and(eq(gastosHogar.userId, userId), eq(gastosHogar.categoriaId, id)))
+    .where(and(inArray(gastosHogar.userId, userIds), eq(gastosHogar.categoriaId, id)))
 
   await db
     .delete(categoriasGastos)
-    .where(and(eq(categoriasGastos.userId, userId), eq(categoriasGastos.id, id)))
+    .where(and(inArray(categoriasGastos.userId, userIds), eq(categoriasGastos.id, id)))
 
   revalidatePath("/gastos")
   revalidatePath("/dashboard")
@@ -58,11 +71,11 @@ export async function deleteCategoria(id: number) {
 
 // --- GASTOS HOGAR ---
 export async function getGastos() {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   return db
     .select()
     .from(gastosHogar)
-    .where(eq(gastosHogar.userId, userId))
+    .where(inArray(gastosHogar.userId, userIds))
     .orderBy(desc(gastosHogar.fechaInicio))
 }
 
@@ -106,10 +119,10 @@ export async function createGasto(data: {
 }
 
 export async function deleteGasto(id: number) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   await db
     .delete(gastosHogar)
-    .where(and(eq(gastosHogar.userId, userId), eq(gastosHogar.id, id)))
+    .where(and(inArray(gastosHogar.userId, userIds), eq(gastosHogar.id, id)))
 
   revalidatePath("/gastos")
   revalidatePath("/dashboard")
@@ -127,7 +140,7 @@ export async function updateGasto(id: number, data: {
   metodoPago?: string
   observaciones?: string
 }) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   const fInicio = data.fechaInicio || data.fecha
   if (!data.descripcion.trim()) throw new Error("La descripción es obligatoria")
   if (data.monto <= 0) throw new Error("El monto debe ser mayor que cero")
@@ -146,7 +159,7 @@ export async function updateGasto(id: number, data: {
       metodoPago: data.metodoPago || "Efectivo",
       observaciones: data.observaciones?.trim() || null,
     })
-    .where(and(eq(gastosHogar.userId, userId), eq(gastosHogar.id, id)))
+    .where(and(inArray(gastosHogar.userId, userIds), eq(gastosHogar.id, id)))
     .returning()
 
   revalidatePath("/gastos")
@@ -156,11 +169,11 @@ export async function updateGasto(id: number, data: {
 
 // --- INGRESOS HOGAR ---
 export async function getIngresos() {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   return db
     .select()
     .from(ingresosHogar)
-    .where(eq(ingresosHogar.userId, userId))
+    .where(inArray(ingresosHogar.userId, userIds))
     .orderBy(desc(ingresosHogar.fecha))
 }
 
@@ -198,10 +211,10 @@ export async function createIngreso(data: {
 }
 
 export async function deleteIngreso(id: number) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   await db
     .delete(ingresosHogar)
-    .where(and(eq(ingresosHogar.userId, userId), eq(ingresosHogar.id, id)))
+    .where(and(inArray(ingresosHogar.userId, userIds), eq(ingresosHogar.id, id)))
 
   revalidatePath("/ingresos")
   revalidatePath("/dashboard")
@@ -216,7 +229,7 @@ export async function updateIngreso(id: number, data: {
   responsable?: string
   observaciones?: string
 }) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   if (!data.descripcion.trim()) throw new Error("La descripción es obligatoria")
   if (data.monto <= 0) throw new Error("El monto debe ser mayor que cero")
   if (!data.fecha) throw new Error("La fecha es obligatoria")
@@ -232,7 +245,7 @@ export async function updateIngreso(id: number, data: {
       responsable: data.responsable?.trim() || null,
       observaciones: data.observaciones?.trim() || null,
     })
-    .where(and(eq(ingresosHogar.userId, userId), eq(ingresosHogar.id, id)))
+    .where(and(inArray(ingresosHogar.userId, userIds), eq(ingresosHogar.id, id)))
     .returning()
 
   revalidatePath("/ingresos")
@@ -242,13 +255,13 @@ export async function updateIngreso(id: number, data: {
 
 // --- PRESUPUESTOS ALIMENTACIÓN ---
 export async function getPresupuestoAlimentacion(anio: number, mes: number) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   const results = await db
     .select()
     .from(presupuestosAlimentacion)
     .where(
       and(
-        eq(presupuestosAlimentacion.userId, userId),
+        inArray(presupuestosAlimentacion.userId, userIds),
         eq(presupuestosAlimentacion.anio, anio),
         eq(presupuestosAlimentacion.mes, mes)
       )
@@ -308,7 +321,7 @@ export async function setPresupuestoAlimentacion(data: {
 
 // --- GASTOS ALIMENTACIÓN ---
 export async function getGastosAlimentacion(anio: number, mes: number) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   
   const mesString = String(mes).padStart(2, "0")
   const startDate = `${anio}-${mesString}-01`
@@ -321,7 +334,7 @@ export async function getGastosAlimentacion(anio: number, mes: number) {
     .from(gastosAlimentacion)
     .where(
       and(
-        eq(gastosAlimentacion.userId, userId),
+        inArray(gastosAlimentacion.userId, userIds),
         sql`${gastosAlimentacion.fecha} >= ${startDate}`,
         sql`${gastosAlimentacion.fecha} < ${endDate}`
       )
@@ -361,10 +374,10 @@ export async function createGastoAlimentacion(data: {
 }
 
 export async function deleteGastoAlimentacion(id: number) {
-  const userId = await getUserId()
+  const userIds = await getAllowedUserIds()
   await db
     .delete(gastosAlimentacion)
-    .where(and(eq(gastosAlimentacion.userId, userId), eq(gastosAlimentacion.id, id)))
+    .where(and(inArray(gastosAlimentacion.userId, userIds), eq(gastosAlimentacion.id, id)))
 
   revalidatePath("/alimentacion")
   revalidatePath("/dashboard")

@@ -2,14 +2,26 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
 import { sql } from "drizzle-orm"
 
 // --- Better Auth required tables for SQLite -------------------------------------------
+export const familias = sqliteTable("familias", {
+  id: text("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  email: text("email").notNull().unique(),
+  estado: text("estado").notNull().default("activo"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
+  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
+})
+
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: integer("emailVerified", { mode: "boolean" }).notNull().default(false),
   image: text("image"),
-  // Roles: "webmaster" | "admin_colegio" | "admin_curso" | "apoderado" | "admin_condominio" | "copropietario"
+  // Roles: "webmaster" | "admin_colegio" | "admin_curso" | "apoderado" | "admin_condominio" | "copropietario" | "invitado"
   role: text("role").notNull().default("apoderado"),
+  familyId: text("familyId").references(() => familias.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("activo"), // "activo" | "cambio_obligatorio"
+  tempPasswordExpiresAt: integer("tempPasswordExpiresAt", { mode: "timestamp" }),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
   updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
 })
@@ -293,5 +305,40 @@ export const pagosGastoComun = sqliteTable("pagos_gasto_comun", {
   fecha: text("fecha").notNull(), // YYYY-MM-DD
   transaccionId: text("transaccionId").notNull().unique(),
   metodoPago: text("metodoPago").notNull().default("Webpay"),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
+})
+
+export const cursoAdmins = sqliteTable("curso_admins", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  colegioId: integer("colegioId")
+    .notNull()
+    .references(() => colegios.id, { onDelete: "cascade" }),
+  cursoId: integer("cursoId")
+    .notNull()
+    .references(() => cursos.id, { onDelete: "cascade" }),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
+})
+
+export const invitaciones = sqliteTable("invitaciones", {
+  id: text("id").primaryKey(), // Token unico
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  tempPassword: text("tempPassword").notNull(),
+  expiresAt: integer("expiresAt", { mode: "timestamp" }).notNull(),
+  usedAt: integer("usedAt", { mode: "timestamp" }),
+  createdAt: integer("createdAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
+})
+
+export const loginAttempts = sqliteTable("login_attempts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  exitoso: integer("exitoso", { mode: "boolean" }).notNull().default(false),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull().default(sql`(strftime('%Y-%m-%d %H:%M:%S', 'now'))`),
 })

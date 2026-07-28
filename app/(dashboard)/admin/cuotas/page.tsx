@@ -35,9 +35,23 @@ export default async function AdminCuotasPage() {
       getCursos(),
       getMetas(),
     ])
-    cuotasList = dbCuotas
-    cursosList = dbCursos
-    metasList = dbMetas
+    
+    if (user.role === "admin_curso") {
+      const { db } = await import("@/lib/db")
+      const { cursoAdmins } = await import("@/lib/db/schema")
+      const { eq } = await import("drizzle-orm")
+      
+      const assignments = await db.select().from(cursoAdmins).where(eq(cursoAdmins.userId, user.id))
+      const allowedCursoIds = assignments.map((a) => a.cursoId)
+      
+      cursosList = dbCursos.filter((c) => allowedCursoIds.includes(c.id))
+      cuotasList = dbCuotas.filter((c) => allowedCursoIds.includes(c.cursoId))
+      metasList = dbMetas.filter((m) => allowedCursoIds.includes(m.cursoId))
+    } else {
+      cuotasList = dbCuotas
+      cursosList = dbCursos
+      metasList = dbMetas
+    }
   }
 
   return (

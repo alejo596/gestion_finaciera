@@ -37,6 +37,8 @@ import { Key, Users, Info, ShieldAlert, Plus, Trash2 } from "lucide-react"
 
 type UsersPermissionsContentProps = {
   initialUsers: any[]
+  colegios: any[]
+  cursos: any[]
 }
 
 const ROLES = [
@@ -50,7 +52,7 @@ const ROLES = [
   { id: "invitado", name: "Usuario Invitado (Datos Ficticios)" },
 ]
 
-export function UsersPermissionsContent({ initialUsers }: UsersPermissionsContentProps) {
+export function UsersPermissionsContent({ initialUsers, colegios, cursos }: UsersPermissionsContentProps) {
   const router = useRouter()
   const [users, setUsers] = useState(initialUsers)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
@@ -62,6 +64,10 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
   const [newPassword, setNewPassword] = useState("")
   const [newRole, setNewRole] = useState("apoderado")
   const [isCreating, setIsCreating] = useState(false)
+
+  // School / Course assignments
+  const [selectedColegioId, setSelectedColegioId] = useState<number | "">("")
+  const [selectedCursoIds, setSelectedCursoIds] = useState<number[]>([])
 
   const handleRoleChange = async (userId: string, newRoleValue: string) => {
     setIsUpdating(userId)
@@ -93,6 +99,8 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
         email: newEmail,
         password: newPassword,
         role: newRole,
+        colegioId: selectedColegioId ? Number(selectedColegioId) : undefined,
+        cursoIds: selectedCursoIds,
       })
       toast.success("Usuario registrado exitosamente")
       setIsOpen(false)
@@ -101,12 +109,11 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
       setNewEmail("")
       setNewPassword("")
       setNewRole("apoderado")
-      
-      // Reload user list
+      setSelectedColegioId("")
+      setSelectedCursoIds([])
       router.refresh()
-      window.location.reload()
     } catch (err: any) {
-      toast.error(err.message || "Error al registrar el usuario")
+      toast.error(err.message || "Error al crear el usuario")
     } finally {
       setIsCreating(false)
     }
@@ -194,6 +201,20 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
                             </option>
                           ))}
                         </select>
+
+                        {u.role === "admin_curso" && u.assignments && u.assignments.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1 max-w-[220px]">
+                            {u.assignments.map((asg: any) => {
+                              const colegio = colegios.find((col) => col.id === asg.colegioId)
+                              const curso = cursos.find((cur) => cur.id === asg.cursoId)
+                              return (
+                                <Badge key={asg.id} variant="outline" className="text-[9px] font-semibold border-indigo-500/20 bg-indigo-500/5 text-indigo-500">
+                                  {colegio?.nombre} - {curso?.nivel} {curso?.nombre}
+                                </Badge>
+                              )
+                            })}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right pr-6 py-3.5">
                         <Button
@@ -330,6 +351,60 @@ export function UsersPermissionsContent({ initialUsers }: UsersPermissionsConten
                   ))}
                 </select>
               </div>
+
+              {newRole === "admin_curso" && (
+                <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800/80 rounded-xl">
+                  <span className="text-[10px] text-indigo-500 uppercase font-black tracking-wider block">Asignación Académica Obligatoria</span>
+                  <div className="grid gap-1">
+                    <Label htmlFor="dlg-user-colegio" className="text-slate-650 dark:text-slate-350 text-xs font-semibold">Colegio *</Label>
+                    <select
+                      id="dlg-user-colegio"
+                      value={selectedColegioId}
+                      onChange={(e) => {
+                        setSelectedColegioId(e.target.value ? Number(e.target.value) : "")
+                        setSelectedCursoIds([])
+                      }}
+                      className="w-full rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-750 dark:border-slate-800 dark:bg-slate-900 outline-none font-medium"
+                      required
+                    >
+                      <option value="">Selecciona un colegio</option>
+                      {colegios.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedColegioId && (
+                    <div className="grid gap-1.5">
+                      <Label className="text-slate-650 dark:text-slate-350 text-xs font-semibold">Seleccionar Curso(s) *</Label>
+                      <div className="max-h-[120px] overflow-y-auto space-y-1.5 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md">
+                        {cursos
+                          .filter((c) => c.colegioId === selectedColegioId)
+                          .map((cur) => (
+                            <div key={cur.id} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`cur-chk-${cur.id}`}
+                                checked={selectedCursoIds.includes(cur.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedCursoIds((prev) => [...prev, cur.id])
+                                  } else {
+                                    setSelectedCursoIds((prev) => prev.filter((id) => id !== cur.id))
+                                  }
+                                }}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <Label htmlFor={`cur-chk-${cur.id}`} className="text-slate-750 dark:text-slate-300 cursor-pointer">
+                                {cur.nivel} {cur.nombre} ({cur.anio})
+                              </Label>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <DialogFooter>

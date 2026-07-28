@@ -365,6 +365,21 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
                       <span>Usuarios y Permisos</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/admin/familias" />}
+                      isActive={pathname === "/admin/familias"}
+                      className={`w-full justify-start gap-3 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-900 ${
+                        pathname === "/admin/familias"
+                          ? "bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-white font-bold"
+                          : "text-slate-650 dark:text-slate-400"
+                      }`}
+                    >
+                      <Users className="h-4 w-4 text-emerald-500" />
+                      <span>Gestión de Familias</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroup>
             )}

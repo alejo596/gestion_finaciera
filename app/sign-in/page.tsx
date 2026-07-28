@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { signIn } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,10 @@ import { Wallet, Loader2 } from "lucide-react"
 
 export default function SignInPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const errorParam = searchParams.get("error")
+  const inviteParam = searchParams.get("invite")
+  
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -76,6 +80,19 @@ export default function SignInPage() {
               Ingresa tus credenciales para acceder a tu cuenta
             </CardDescription>
           </CardHeader>
+
+          {errorParam === "expired" && (
+            <div className="mx-6 mb-4 p-3 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-400 text-[11px] leading-normal font-medium">
+              La invitación o contraseña temporal ha expirado. Solicite el envío de una nueva invitación.
+            </div>
+          )}
+
+          {inviteParam && !errorParam && (
+            <div className="mx-6 mb-4 p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/10 text-indigo-400 text-[11px] leading-normal font-medium">
+              ¡Tienes una invitación familiar activa! Inicia sesión con el correo invitado y la clave temporal proporcionada para proceder con el cambio obligatorio de contraseña.
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
